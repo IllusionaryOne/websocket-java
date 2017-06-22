@@ -44,12 +44,12 @@ public class LaunchClient {
 	/**
 	 * server hostname
 	 */
-	private final static String HOSTNAME = "127.0.0.1";
+	private final static String HOSTNAME = "morpheus.int.freaq.net";
 
 	/**
 	 * server port
 	 */
-	private final static int PORT = 8443;
+	private final static int PORT = 27005;
 
 	private final static String KEYSTORE_DEFAULT_TYPE = "PKCS12";
 	private final static String TRUSTORE_DEFAULT_TYPE = "JKS";

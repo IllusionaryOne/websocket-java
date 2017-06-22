@@ -14,7 +14,7 @@
 	
 	<target name="compile" description="Compile source">
         <mkdir dir="bin" />
-        <javac srcdir="src" includes="**" destdir="bin"  >
+        <javac srcdir="src" includes="**" destdir="bin" includeantruntime="false">
         	<classpath refid="master-classpath"/>
        	</javac>
 		
@@ -31,6 +31,11 @@
 			    <attribute name="Main-Class" value="fr.bmartel.websocket.LaunchServer"/>
 			 </manifest>
 		</jar>
+	</target>
+
+    <target name="clean">
+        <delete file="release/libwebsocket-1.0.jar" />
+        <delete dir="bin" />
 	</target>
 
 </project>

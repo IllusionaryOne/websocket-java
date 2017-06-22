@@ -83,7 +83,7 @@ public class LaunchServer {
 			public void onClientConnection(IWebsocketClient client) {
 				// when a websocket client connect. This will be called (you can
 				// store client object)
-				System.out.println("Websocket client has connected");
+				System.out.println("Websocket client has connected " + client.getHostAddress());
 
 				client.sendMessage("Hello,I'm a websocket server");
 

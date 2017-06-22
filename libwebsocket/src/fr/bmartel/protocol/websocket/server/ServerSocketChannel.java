@@ -29,6 +29,8 @@ import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketAddress;
+import java.net.InetAddress;
 
 import fr.bmartel.protocol.http.HttpFrame;
 import fr.bmartel.protocol.http.constants.HttpConstants;
@@ -40,258 +42,293 @@ import fr.bmartel.protocol.websocket.listeners.IClientEventListener;
 
 /**
  * <b>Server socket connection management</b>
- * 
+ *
  * @author Bertrand Martel
  */
 public class ServerSocketChannel implements Runnable, IWebsocketClient {
 
-	/** websocket decoder / encoder object */
-	private WebSocketChannel websocketChannel = null;
+    /** websocket decoder / encoder object */
+    private WebSocketChannel websocketChannel = null;
 
-	/** socket to be used by server */
-	private Socket socket;
+    /** socket to be used by server */
+    private Socket socket;
 
-	/** inputstream to be used for reading */
-	private InputStream inputStream;
+    /** inputstream to be used for reading */
+    private InputStream inputStream;
 
-	/** outputstream to be used for writing */
-	private OutputStream outputStream;
+    /** outputstream to be used for writing */
+    private OutputStream outputStream;
 
-	/** http request parser */
-	private HttpFrame httpFrameParser;
+    /** http request parser */
+    private HttpFrame httpFrameParser;
 
-	private IClientEventListener clientListener = null;
+    private IClientEventListener clientListener = null;
 
-	/**
-	 * Initialize socket connection when the connection is available ( socket
-	 * parameter wil block until it is opened)
-	 * 
-	 * @param socket
-	 *            the socket opened
-	 * @param context
-	 *            the current OSGI context
-	 */
-	public ServerSocketChannel(Socket socket,
-			IClientEventListener clientListener) {
-		try {
-			this.clientListener = clientListener;
+    /**
+     * Initialize socket connection when the connection is available ( socket
+     * parameter wil block until it is opened)
+     *
+     * @param socket
+     *            the socket opened
+     * @param context
+     *            the current OSGI context
+     */
+    public ServerSocketChannel(Socket socket,
+                               IClientEventListener clientListener) {
+        try {
+            this.clientListener = clientListener;
 
-			/* give the socket opened to the main class */
-			this.socket = socket;
-			/* extract the associated input stream */
-			this.inputStream = socket.getInputStream();
-			/* extract the associated output stream */
-			this.outputStream = socket.getOutputStream();
+            /* give the socket opened to the main class */
+            this.socket = socket;
+            /* extract the associated input stream */
+            this.inputStream = socket.getInputStream();
+            /* extract the associated output stream */
+            this.outputStream = socket.getOutputStream();
 
-			/*
-			 * initialize parsing method for request string and different body
-			 * of http request
-			 */
-			this.httpFrameParser = new HttpFrame();
-			/*
-			 * intialize response manager for writing data to outputstream
-			 * method (headers generation ...)
-			 */
+            /*
+             * initialize parsing method for request string and different body
+             * of http request
+             */
+            this.httpFrameParser = new HttpFrame();
+            /*
+             * intialize response manager for writing data to outputstream
+             * method (headers generation ...)
+             */
 
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
-	/**
-	 * Write byte array to socket outputstream
-	 * 
-	 * @param bytes
-	 * @throws IOException
-	 */
-	private void writeToSocket(byte[] bytes) throws IOException {
-		synchronized (this.socket.getOutputStream()) {
-			this.socket.getOutputStream().write(bytes);
-			this.socket.getOutputStream().flush();
-		}
-	}
+    /**
+     * Write byte array to socket outputstream
+     *
+     * @param bytes
+     * @throws IOException
+     */
+    private void writeToSocket(byte[] bytes) throws IOException {
+        synchronized (this.socket.getOutputStream()) {
+            this.socket.getOutputStream().write(bytes);
+            this.socket.getOutputStream().flush();
+        }
+    }
 
-	/**
-	 * Define if websocket connection has been enables by client and server
-	 */
-	private boolean websocket = false;
+    /**
+     * Define if websocket connection has been enables by client and server
+     */
+    private boolean websocket = false;
 
-	/**
-	 * Main socket thread : parse all datas passing through socket inputstream
-	 */
-	@Override
-	public void run() {
-		try {
-			do {
-				/* clear richRequest object (specially headers) */
-				this.httpFrameParser = new HttpFrame();
+    /**
+     * Main socket thread : parse all datas passing through socket inputstream
+     */
+    @Override
+    public void run() {
+        try {
+            do {
+                /* clear richRequest object (specially headers) */
+                this.httpFrameParser = new HttpFrame();
 
-				/*
-				 * define loop if websocket has been enables by client and
-				 * server
-				 */
-				if (websocket == false) {
+                /*
+                 * define loop if websocket has been enables by client and
+                 * server
+                 */
+                if (websocket == false) {
 
-					HttpStates httpStatus = this.httpFrameParser
-							.parseHttp(inputStream);
+                    HttpStates httpStatus = this.httpFrameParser
+                                            .parseHttp(inputStream);
 
-					if (httpStatus == HttpStates.HTTP_FRAME_OK) {
+                    if (httpStatus == HttpStates.HTTP_FRAME_OK) {
 
-						/* check if Connection: Upgrade is present in header map */
-						if (this.httpFrameParser.getHeaders().containsKey(
-								HttpHeader.CONNECTION.toLowerCase())
-								&& this.httpFrameParser.getHeaders()
-										.containsKey(
-												HttpHeader.UPGRADE
-														.toLowerCase())) {
-							if (this.httpFrameParser.getHeaders()
-									.get(HttpHeader.CONNECTION.toLowerCase())
-									.toLowerCase().indexOf("upgrade") != -1
-									&& this.httpFrameParser
-											.getHeaders()
-											.get(HttpHeader.UPGRADE
-													.toLowerCase())
-											.toLowerCase().indexOf("websocket") != -1) {
+                        /* check if Connection: Upgrade is present in header map */
+                        if (this.httpFrameParser.getHeaders().containsKey(
+                                    HttpHeader.CONNECTION.toLowerCase())
+                                && this.httpFrameParser.getHeaders()
+                                .containsKey(
+                                    HttpHeader.UPGRADE
+                                    .toLowerCase())) {
+                            if (this.httpFrameParser.getHeaders()
+                                    .get(HttpHeader.CONNECTION.toLowerCase())
+                                    .toLowerCase().indexOf("upgrade") != -1
+                                    && this.httpFrameParser
+                                    .getHeaders()
+                                    .get(HttpHeader.UPGRADE
+                                         .toLowerCase())
+                                    .toLowerCase().indexOf("websocket") != -1) {
 
-								upgradeWebsocketProtocol(this.outputStream,
-										this.httpFrameParser, this);
+                                upgradeWebsocketProtocol(this.outputStream,
+                                                         this.httpFrameParser, this);
 
-								websocketChannel = new WebSocketChannel();
-								notifyConnectionSuccess();
-								this.websocket = true;
-							}
-						} else if (httpStatus == HttpStates.MALFORMED_HTTP_FRAME) {
+                                websocketChannel = new WebSocketChannel();
+                                notifyConnectionSuccess();
+                                this.websocket = true;
+                            }
+                        } else if (httpStatus == HttpStates.MALFORMED_HTTP_FRAME) {
 
-							writeToSocket(HttpConstants.BAD_REQUEST_ERROR
-									.getBytes("UTF-8"));
+                            writeToSocket(HttpConstants.BAD_REQUEST_ERROR
+                                          .getBytes("UTF-8"));
 
-						} else {
+                        } else {
 
-							websocket = false;
-							closeSocket();
-							return;
-						}
-					}
-				} else {
+                            websocket = false;
+                            closeSocket();
+                            return;
+                        }
+                    }
+                } else {
 
-					/* read something on websocket stream */
-					byte[] data = this.websocketChannel
-							.decapsulateMessage(this.inputStream);
+                    /* read something on websocket stream */
+                    byte[] data = this.websocketChannel
+                                  .decapsulateMessage(this.inputStream);
 
-					String messageRead = "";
+                    String messageRead = "";
 
-					if (data != null) {
-						messageRead = new String(data);
-					} else {
-						websocket = false;
-						closeSocket();
-						return;
-					}
+                    if (data != null) {
+                        messageRead = new String(data);
+                    } else {
+                        websocket = false;
+                        closeSocket();
+                        return;
+                    }
 
-					if (clientListener != null && messageRead != null) {
-						clientListener.onMessageReceivedFromClient(this,
-								messageRead);
-					}
+                    if (clientListener != null && messageRead != null) {
+                        clientListener.onMessageReceivedFromClient(this,
+                                messageRead);
+                    }
 
-					if (messageRead == null) {
-						websocket = false;
-						closeSocket();
-						return;
-					}
+                    if (messageRead == null) {
+                        websocket = false;
+                        closeSocket();
+                        return;
+                    }
 
-				}
-			} while (websocket == true);
-			closeSocket();
-		} catch (SocketException e) {
-		} catch (Exception e) {
-			e.printStackTrace();
-			// TODO : redirect ?
-		}
-	}
+                }
+            } while (websocket == true);
+            closeSocket();
+        } catch (SocketException e) {
+        } catch (Exception e) {
+            e.printStackTrace();
+            // TODO : redirect ?
+        }
+    }
 
-	/**
-	 * Switch to Websocket protocol from server socket
-	 * 
-	 * @param out
-	 *            socket outputStream
-	 * @param httpFrameParser
-	 *            http parser
-	 * @param serverThread
-	 *            server thread
-	 * @throws UnsupportedEncodingException
-	 * @throws IOException
-	 */
-	private void upgradeWebsocketProtocol(OutputStream out,
-			HttpFrame httpFrameParser, ServerSocketChannel serverThread)
-			throws UnsupportedEncodingException, IOException {
+    /**
+     * Switch to Websocket protocol from server socket
+     *
+     * @param out
+     *            socket outputStream
+     * @param httpFrameParser
+     *            http parser
+     * @param serverThread
+     *            server thread
+     * @throws UnsupportedEncodingException
+     * @throws IOException
+     */
+    private void upgradeWebsocketProtocol(OutputStream out,
+                                          HttpFrame httpFrameParser, ServerSocketChannel serverThread)
+    throws UnsupportedEncodingException, IOException {
 
-		/* write websocket handshake to client */
-		synchronized (out) {
-			out.write(WebSocketHandshake.writeWebSocketHandShake(
-					httpFrameParser).getBytes());
-			out.flush();
-		}
-	}
+        /* write websocket handshake to client */
+        synchronized (out) {
+            out.write(WebSocketHandshake.writeWebSocketHandShake(
+                          httpFrameParser).getBytes());
+            out.flush();
+        }
+    }
 
-	/**
-	 * Notify websocket client connection success
-	 */
-	private void notifyConnectionSuccess() {
-		if (clientListener != null) {
-			clientListener.onClientConnection(this);
-		}
-	}
+    /**
+     * Notify websocket client connection success
+     */
+    private void notifyConnectionSuccess() {
+        if (clientListener != null) {
+            clientListener.onClientConnection(this);
+        }
+    }
 
-	/**
-	 * Close socket inputstream
-	 * 
-	 * @throws IOException
-	 */
-	private void closeInputStream() throws IOException {
-		this.inputStream.close();
-	}
+    /**
+     * Close socket inputstream
+     *
+     * @throws IOException
+     */
+    private void closeInputStream() throws IOException {
+        this.inputStream.close();
+    }
 
-	/**
-	 * Close socket inputstream
-	 */
-	private void closeOutputStream() throws IOException {
-		this.outputStream.close();
-	}
+    /**
+     * Close socket inputstream
+     */
+    private void closeOutputStream() throws IOException {
+        this.outputStream.close();
+    }
 
-	private void closeSocket() {
-		try {
-			closeInputStream();
-			closeOutputStream();
-			this.socket.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
+    private void closeSocket() {
+        try {
+            closeInputStream();
+            closeOutputStream();
+            this.socket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
-	@Override
-	public int close() {
-		System.out.println("closing ....");
+    @Override
+    public int close() {
+        System.out.println("closing ....");
 
-		websocket = false;
-		closeSocket();
+        websocket = false;
+        closeSocket();
 
-		if (clientListener != null) {
-			clientListener.onClientClose(this);
-		}
+        if (clientListener != null) {
+            clientListener.onClientClose(this);
+        }
 
-		return 0;
-	}
+        return 0;
+    }
 
-	@Override
-	public int sendMessage(String message) {
-		if (outputStream != null) {
-			try {
-				websocketChannel.encapsulateMessage(message, outputStream);
-				return 0;
-			} catch (IOException | InterruptedException e) {
-				// e.printStackTrace();
-			}
-		}
-		return -1;
-	}
+    @Override
+    public int sendMessage(String message) {
+        if (outputStream != null) {
+            try {
+                websocketChannel.encapsulateMessage(message, outputStream);
+                return 0;
+            } catch (IOException | InterruptedException e) {
+                // e.printStackTrace();
+            }
+        }
+        return -1;
+    }
+
+    @Override
+    public int send(String message) {
+        return sendMessage(message);
+    }
+
+    @Override
+    public int getPort() {
+        if (socket != null) {
+            return socket.getPort();
+        }
+        return 0;
+    }
+
+    @Override
+    public String getHostAddress() {
+        if (socket != null) {
+            return socket.getInetAddress().getHostAddress();
+        }
+        return "Socket is NULL";
+    }
+          
+    @Override
+    public String getHostName() {
+        if (socket != null) {
+            return socket.getInetAddress().getHostName();
+        }
+        return "Socket is NULL";
+    }
+
+    @Override
+    public SocketAddress getRemoteSocketAddress() {
+        return socket.getRemoteSocketAddress();
+    }
+          
 }
