@@ -32,6 +32,19 @@ public interface IWebsocketClient {
     public String getHostName();
     public String getHostAddress();
 
+    /**
+     * Returns the remote port of the client.
+     *
+     * @return
+     *     Socket port number; 0 on error
+     */
     public int getPort();
+
+    /**
+     * Returns the remote socket address object of the client.
+     *
+     * @return
+     *      SocketAddress object.
+     */
     public SocketAddress getRemoteSocketAddress();
 }

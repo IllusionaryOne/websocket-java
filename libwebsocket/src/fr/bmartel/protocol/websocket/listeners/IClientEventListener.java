@@ -34,4 +34,22 @@ public interface IClientEventListener {
      */
     public void onMessageReceivedFromClient(IWebsocketClient client,String message);
 
+    /**
+     * called when a server error occurs
+     *
+     * @param errorMessage
+     *      error that occurred
+     */
+    public void onServerError(IWebsocketClient client,String errorMessage);
+
+    /**
+     * called when a non fatal error occurs
+     *
+     * @param client
+     *      client object
+     * @param errorMessage
+     *      error that occurred
+     */
+    public void onError(IWebsocketClient client,String errorMessage);
+
 }

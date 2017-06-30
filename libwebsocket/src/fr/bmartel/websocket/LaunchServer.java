@@ -96,9 +96,24 @@ public class LaunchServer {
 				// (you can dismiss client object)
 				System.out.println("Websocket client has disconnected");
 			}
+
+            @Override
+            public void onServerError(IWebsocketClient client, String errorMessage) {
+                System.out
+                        .println("[SERVER] Websocket server error");
+            }
+
+            @Override
+            public void onError(IWebsocketClient client, String errorMessage) {
+                System.out
+                        .println("[SERVER] Websocket client error");
+            }
 		});
 
-		server.start(); // start Websocket server => this method will block
+        try {
+		    server.start(); // start Websocket server => this method will block
+        } catch (Exception ex) {
+        }
 
 		// server.closeServer(); //close websocket server
 	}

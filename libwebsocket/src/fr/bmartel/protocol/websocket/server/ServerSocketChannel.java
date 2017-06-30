@@ -65,7 +65,7 @@ public class ServerSocketChannel implements Runnable, IWebsocketClient {
     private IClientEventListener clientListener = null;
 
     /**
-     * Initialize socket connection when the connection is available ( socket
+     * Initialize socket connection when the connection is available (socket
      * parameter wil block until it is opened)
      *
      * @param socket
@@ -96,7 +96,7 @@ public class ServerSocketChannel implements Runnable, IWebsocketClient {
              */
 
         } catch (Exception e) {
-            e.printStackTrace();
+            clientListener.onError(this, e.getMessage());
         }
     }
 
@@ -114,7 +114,7 @@ public class ServerSocketChannel implements Runnable, IWebsocketClient {
     }
 
     /**
-     * Define if websocket connection has been enables by client and server
+     * Define if websocket connection has been enabled by client and server
      */
     private boolean websocket = false;
 
@@ -134,41 +134,25 @@ public class ServerSocketChannel implements Runnable, IWebsocketClient {
                  */
                 if (websocket == false) {
 
-                    HttpStates httpStatus = this.httpFrameParser
-                                            .parseHttp(inputStream);
+                    HttpStates httpStatus = this.httpFrameParser.parseHttp(inputStream);
 
                     if (httpStatus == HttpStates.HTTP_FRAME_OK) {
 
                         /* check if Connection: Upgrade is present in header map */
-                        if (this.httpFrameParser.getHeaders().containsKey(
-                                    HttpHeader.CONNECTION.toLowerCase())
-                                && this.httpFrameParser.getHeaders()
-                                .containsKey(
-                                    HttpHeader.UPGRADE
-                                    .toLowerCase())) {
-                            if (this.httpFrameParser.getHeaders()
-                                    .get(HttpHeader.CONNECTION.toLowerCase())
-                                    .toLowerCase().indexOf("upgrade") != -1
-                                    && this.httpFrameParser
-                                    .getHeaders()
-                                    .get(HttpHeader.UPGRADE
-                                         .toLowerCase())
-                                    .toLowerCase().indexOf("websocket") != -1) {
+                        if (this.httpFrameParser.getHeaders().containsKey(HttpHeader.CONNECTION.toLowerCase())
+                                && this.httpFrameParser.getHeaders().containsKey(HttpHeader.UPGRADE.toLowerCase())) {
+                            if (this.httpFrameParser.getHeaders().get(HttpHeader.CONNECTION.toLowerCase()).toLowerCase().indexOf("upgrade") != -1
+                                    && this.httpFrameParser.getHeaders().get(HttpHeader.UPGRADE.toLowerCase()).toLowerCase().indexOf("websocket") != -1) {
 
-                                upgradeWebsocketProtocol(this.outputStream,
-                                                         this.httpFrameParser, this);
+                                upgradeWebsocketProtocol(this.outputStream, this.httpFrameParser, this);
 
                                 websocketChannel = new WebSocketChannel();
                                 notifyConnectionSuccess();
                                 this.websocket = true;
                             }
                         } else if (httpStatus == HttpStates.MALFORMED_HTTP_FRAME) {
-
-                            writeToSocket(HttpConstants.BAD_REQUEST_ERROR
-                                          .getBytes("UTF-8"));
-
+                            writeToSocket(HttpConstants.BAD_REQUEST_ERROR.getBytes("UTF-8"));
                         } else {
-
                             websocket = false;
                             closeSocket();
                             return;
@@ -177,8 +161,7 @@ public class ServerSocketChannel implements Runnable, IWebsocketClient {
                 } else {
 
                     /* read something on websocket stream */
-                    byte[] data = this.websocketChannel
-                                  .decapsulateMessage(this.inputStream);
+                    byte[] data = this.websocketChannel.decapsulateMessage(this.inputStream);
 
                     String messageRead = "";
 
@@ -191,8 +174,7 @@ public class ServerSocketChannel implements Runnable, IWebsocketClient {
                     }
 
                     if (clientListener != null && messageRead != null) {
-                        clientListener.onMessageReceivedFromClient(this,
-                                messageRead);
+                        clientListener.onMessageReceivedFromClient(this, messageRead);
                     }
 
                     if (messageRead == null) {
@@ -205,9 +187,9 @@ public class ServerSocketChannel implements Runnable, IWebsocketClient {
             } while (websocket == true);
             closeSocket();
         } catch (SocketException e) {
+            clientListener.onError(this, e.getMessage());
         } catch (Exception e) {
-            e.printStackTrace();
-            // TODO : redirect ?
+            clientListener.onError(this, e.getMessage());
         }
     }
 
@@ -223,14 +205,12 @@ public class ServerSocketChannel implements Runnable, IWebsocketClient {
      * @throws UnsupportedEncodingException
      * @throws IOException
      */
-    private void upgradeWebsocketProtocol(OutputStream out,
-                                          HttpFrame httpFrameParser, ServerSocketChannel serverThread)
+    private void upgradeWebsocketProtocol(OutputStream out, HttpFrame httpFrameParser, ServerSocketChannel serverThread)
     throws UnsupportedEncodingException, IOException {
 
         /* write websocket handshake to client */
         synchronized (out) {
-            out.write(WebSocketHandshake.writeWebSocketHandShake(
-                          httpFrameParser).getBytes());
+            out.write(WebSocketHandshake.writeWebSocketHandShake(httpFrameParser).getBytes());
             out.flush();
         }
     }
@@ -266,14 +246,12 @@ public class ServerSocketChannel implements Runnable, IWebsocketClient {
             closeOutputStream();
             this.socket.close();
         } catch (IOException e) {
-            e.printStackTrace();
+            clientListener.onError(this, e.getMessage());
         }
     }
 
     @Override
     public int close() {
-        System.out.println("closing ....");
-
         websocket = false;
         closeSocket();
 
@@ -291,7 +269,7 @@ public class ServerSocketChannel implements Runnable, IWebsocketClient {
                 websocketChannel.encapsulateMessage(message, outputStream);
                 return 0;
             } catch (IOException | InterruptedException e) {
-                // e.printStackTrace();
+                clientListener.onError(this, e.getMessage());
             }
         }
         return -1;
@@ -315,7 +293,7 @@ public class ServerSocketChannel implements Runnable, IWebsocketClient {
         if (socket != null) {
             return socket.getInetAddress().getHostAddress();
         }
-        return "Socket is NULL";
+        return "";
     }
           
     @Override
@@ -323,7 +301,7 @@ public class ServerSocketChannel implements Runnable, IWebsocketClient {
         if (socket != null) {
             return socket.getInetAddress().getHostName();
         }
-        return "Socket is NULL";
+        return "";
     }
 
     @Override

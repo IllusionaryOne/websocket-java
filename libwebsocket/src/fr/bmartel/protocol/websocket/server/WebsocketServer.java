@@ -42,19 +42,14 @@ public class WebsocketServer implements IWebsocketServer, IClientEventListener {
     private String keystoreDefaultType = "";
 
     /**
-     * trustore certificate type
+     * keymanagerfactory type
      */
-    private String trustoreDefaultType = "";
+    private String keymanagerDefaultType = "";
 
     /**
      * keystore file path
      */
     private String keystoreFile = "";
-
-    /**
-     * trustore file path
-     */
-    private String trustoreFile = "";
 
     /**
      * ssl protocol used
@@ -65,11 +60,6 @@ public class WebsocketServer implements IWebsocketServer, IClientEventListener {
      * keystore file password
      */
     private String keystorePassword = "";
-
-    /**
-     * trustore file password
-     */
-    private String trustorePassword = "";
 
     /** define server socket object */
     private ServerSocket serverSocket;
@@ -92,7 +82,7 @@ public class WebsocketServer implements IWebsocketServer, IClientEventListener {
      * Thread for handling incoming connections to prevent blocking.
      */
     private class AcceptRunnable implements Runnable {
-        IClientEventListener thisServer;
+        private IClientEventListener thisServer;
 
         public AcceptRunnable(IClientEventListener thisServer) { 
             this.thisServer = thisServer;
@@ -109,9 +99,9 @@ public class WebsocketServer implements IWebsocketServer, IClientEventListener {
                 }
                 serverSocket.close();
             } catch (SocketException e) {
-                stop();
+                onServerError(null, e.getMessage());
             } catch (IOException e) {
-                e.printStackTrace();
+                onServerError(null, e.getMessage());
             }
         }
     }
@@ -119,7 +109,7 @@ public class WebsocketServer implements IWebsocketServer, IClientEventListener {
     /**
      * main loop for web server running
      */
-    public void start() {
+    public void start() throws Exception {
         try {
             /* server will be running while running == true */
             running = true;
@@ -130,11 +120,11 @@ public class WebsocketServer implements IWebsocketServer, IClientEventListener {
                 ks.load(new FileInputStream(keystoreFile), keystorePassword.toCharArray());
 
                 /* initialize key manager factory with chosen algorithm */
-                KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+                KeyManagerFactory kmf = KeyManagerFactory.getInstance(keymanagerDefaultType);
                 kmf.init(ks, keystorePassword.toCharArray());
 
                 /* initialize trust manager factory with chosen algorithm */
-                TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                TrustManagerFactory tmf = TrustManagerFactory.getInstance(keymanagerDefaultType);
                 tmf.init(ks);
 
                 /* get SSL context chosen algorithm and bind to the keystore */
@@ -147,34 +137,32 @@ public class WebsocketServer implements IWebsocketServer, IClientEventListener {
             } else {
                 serverSocket = new ServerSocket(port);
             }
+        } catch (SocketException e) {
+            running = false;
+            throw e;
+        } catch (IOException e) {
+            running = false;
+            throw e;
+        } catch (KeyStoreException e) {
+            running = false;
+            throw e;
+        } catch (UnrecoverableKeyException e) {
+            running = false;
+            throw e;
+        } catch (NoSuchAlgorithmException e) {
+            running = false;
+            throw e;
+        } catch (CertificateException e) {
+            running = false;
+            throw e;
+        } catch (KeyManagementException e) {
+            running = false;
+            throw e;
+        }
 
-            /*
-             * server thread main loop : accept a new connect each time
-             * requested by correct client
-             */
+        if (running) {
             AcceptRunnable acceptRunnable = new AcceptRunnable(this);
             new Thread(acceptRunnable, "WebSocketServer").start();
-        } catch (SocketException e) {
-            // e.printStackTrace();
-            /* stop all thread and server socket */
-            stop();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (KeyStoreException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (UnrecoverableKeyException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (NoSuchAlgorithmException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (CertificateException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (KeyManagementException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
         }
     }
 
@@ -190,8 +178,9 @@ public class WebsocketServer implements IWebsocketServer, IClientEventListener {
      * @param keystorePassword
      *            keystore password
      */
-    public void setSSLParams(String keystoreDefaultType, String keystoreFile, String sslProtocol, String keystorePassword) {
+    public void setSSLParams(String keystoreDefaultType, String keymanagerDefaultType, String sslProtocol, String keystoreFile, String keystorePassword) {
         this.keystoreDefaultType = keystoreDefaultType;
+        this.keymanagerDefaultType = keymanagerDefaultType;
         this.keystoreFile = keystoreFile;
         this.sslProtocol = sslProtocol;
         this.keystorePassword = keystorePassword;
@@ -204,12 +193,8 @@ public class WebsocketServer implements IWebsocketServer, IClientEventListener {
         running = false;
 
         if (!isServerClosed) {
-
             isServerClosed = true;
-
-            /* close socket connection */
             closeServerSocket();
-            /* disable loop */
         }
     }
 
@@ -219,7 +204,6 @@ public class WebsocketServer implements IWebsocketServer, IClientEventListener {
             try {
                 serverSocket.close();
             } catch (IOException e) {
-                e.printStackTrace();
             }
         }
     }
@@ -250,8 +234,21 @@ public class WebsocketServer implements IWebsocketServer, IClientEventListener {
     public void onMessageReceivedFromClient(IWebsocketClient client,
                                             String message) {
         for (int i = 0; i < serverEventListenerList.size(); i++) {
-            serverEventListenerList.get(i).onMessageReceivedFromClient(client,
-                    message);
+            serverEventListenerList.get(i).onMessageReceivedFromClient(client, message);
+        }
+    }
+
+    @Override
+    public void onServerError(IWebsocketClient client, String errorMessage) {
+        for (int i = 0; i < serverEventListenerList.size(); i++) {
+            serverEventListenerList.get(i).onServerError(client, errorMessage);
+        }
+    }
+
+    @Override
+    public void onError(IWebsocketClient client, String errorMessage) {
+        for (int i = 0; i < serverEventListenerList.size(); i++) {
+            serverEventListenerList.get(i).onError(client, errorMessage);
         }
     }
 

@@ -19,6 +19,9 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import java.security.cert.X509Certificate;
 
 import fr.bmartel.protocol.http.HttpFrame;
 import fr.bmartel.protocol.http.states.HttpStates;
@@ -40,41 +43,6 @@ public class WebsocketClient implements IWebsocketClientChannel {
     private boolean ssl = false;
 
     private static String websocketResponseExpected = "";
-
-    /**
-     * keystore certificate type
-     */
-    private String keystoreDefaultType = "";
-
-    /**
-     * trustore certificate type
-     */
-    private String trustoreDefaultType = "";
-
-    /**
-     * keystore file path
-     */
-    private String keystoreFile = "";
-
-    /**
-     * trustore file path
-     */
-    private String trustoreFile = "";
-
-    /**
-     * ssl protocol used
-     */
-    private String sslProtocol = "";
-
-    /**
-     * keystore file password
-     */
-    private String keystorePassword = "";
-
-    /**
-     * trustore file password
-     */
-    private String trustorePassword = "";
 
     /**
      * define socket timeout (-1 if no timeout defined)
@@ -125,59 +93,26 @@ public class WebsocketClient implements IWebsocketClientChannel {
         try {
 
             if (ssl) {
-                /* initial server keystore instance */
-                KeyStore ks = KeyStore.getInstance(keystoreDefaultType);
 
-                /* load keystore from file */
-                ks.load(new FileInputStream(keystoreFile),
-                        keystorePassword.toCharArray());
+                TrustManager[] trustAllCerts = new TrustManager[] {
+                    new X509TrustManager() {
+                        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                            return new java.security.cert.X509Certificate[] { };
+                        }
 
-                /*
-                 * assign a new keystore containing all certificated to be
-                 * trusted
-                 */
-                KeyStore tks = KeyStore.getInstance(trustoreDefaultType);
+                        public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException { }
+                        public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException { }
+                    }
+                };
 
-                /* load this keystore from file */
-                tks.load(new FileInputStream(trustoreFile),
-                         trustorePassword.toCharArray());
-
-                /* initialize key manager factory with chosen algorithm */
-                KeyManagerFactory kmf = KeyManagerFactory
-                                        .getInstance(KeyManagerFactory.getDefaultAlgorithm());
-
-                /* initialize trust manager factory with chosen algorithm */
-                TrustManagerFactory tmf;
-
-                tmf = TrustManagerFactory.getInstance(TrustManagerFactory
-                                                      .getDefaultAlgorithm());
-
-                /* initialize key manager factory with initial keystore */
-                kmf.init(ks, keystorePassword.toCharArray());
-
-                /*
-                 * initialize trust manager factory with keystore containing
-                 * certificates to be trusted
-                 */
-                tmf.init(tks);
-
-                /* get SSL context chosen algorithm */
-                SSLContext ctx = SSLContext.getInstance(sslProtocol);
-
-                /*
-                 * initialize SSL context with key manager and trust managers
-                 */
-                ctx.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
-
-                SSLSocketFactory sslserversocketfactory = ctx
-                        .getSocketFactory();
+                SSLContext ctx = SSLContext.getInstance("TLS");
+                ctx.init(null, null, null);
+                SSLSocketFactory sslserversocketfactory = ctx.getSocketFactory();
 
                 /* create a SSL socket connection */
                 socket = new Socket();
                 socket = sslserversocketfactory.createSocket();
-
             } else {
-
                 /* create a basic socket connection */
                 socket = new Socket();
             }
@@ -208,22 +143,15 @@ public class WebsocketClient implements IWebsocketClientChannel {
                             try {
                                 HttpFrame frame = new HttpFrame();
 
-                                HttpStates httpStates = frame.parseHttp(socket
-                                                                        .getInputStream());
+                                HttpStates httpStates = frame.parseHttp(socket.getInputStream());
 
                                 // check handshake response from websocket
                                 // server
-                                if (WebSocketHandshake
-                                        .isValidHandshakeResponse(frame,
-                                                                  httpStates,
-                                                                  websocketResponseExpected)) {
-
+                                if (WebSocketHandshake.isValidHandshakeResponse(frame, httpStates, websocketResponseExpected)) {
                                     websocket = true;
 
-                                    for (int i = 0; i < clientListenerList
-                                            .size(); i++) {
-                                        clientListenerList.get(i)
-                                        .onSocketConnected();
+                                    for (int i = 0; i < clientListenerList.size(); i++) {
+                                        clientListenerList.get(i).onSocketConnected();
                                     }
                                 } else {
                                     websocket = false;
@@ -240,21 +168,15 @@ public class WebsocketClient implements IWebsocketClientChannel {
 
                             try {
                                 /* read something on websocket stream */
-                                byte[] data = websocketChannel
-                                              .decapsulateMessage(socket
-                                                                  .getInputStream());
+                                byte[] data = websocketChannel.decapsulateMessage(socket.getInputStream());
 
                                 if (data == null) {
                                     closeSocket();
                                     websocket = false;
                                 } else {
                                     // incoming data message received
-                                    for (int i = 0; i < clientListenerList
-                                            .size(); i++) {
-                                        clientListenerList.get(i)
-                                        .onIncomingMessageReceived(
-                                            data,
-                                            WebsocketClient.this);
+                                    for (int i = 0; i < clientListenerList.size(); i++) {
+                                        clientListenerList.get(i).onIncomingMessageReceived(data, WebsocketClient.this);
                                     }
                                 }
                             } catch (Exception e) {
@@ -273,29 +195,17 @@ public class WebsocketClient implements IWebsocketClientChannel {
             });
             readingThread.start();
 
-            String websocketKey = new BigInteger(130, new Random(42424242))
-            .toString(32);
+            String websocketKey = new BigInteger(130, new Random(42424242)).toString(32);
 
-            websocketResponseExpected = WebSocketHandshake
-                                        .retrieveWebsocketAccept(websocketKey);
+            websocketResponseExpected = WebSocketHandshake.retrieveWebsocketAccept(websocketKey);
 
-            write(WebSocketHandshake.buildWebsocketHandshakeRequest(
-                      websocketKey).getBytes("UTF-8"));
+            write(WebSocketHandshake.buildWebsocketHandshakeRequest(websocketKey).getBytes("UTF-8"));
 
         } catch (IOException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
             e.printStackTrace();
         } catch (NoSuchAlgorithmException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (UnrecoverableKeyException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (KeyStoreException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (CertificateException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         } catch (KeyManagementException e) {
@@ -330,8 +240,7 @@ public class WebsocketClient implements IWebsocketClientChannel {
     @Override
     public int writeMessage(String message) {
         try {
-            this.websocketChannel.encapsulateMessage(message,
-                    socket.getOutputStream());
+            this.websocketChannel.encapsulateMessage(message, socket.getOutputStream());
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
             return -1;
@@ -386,36 +295,4 @@ public class WebsocketClient implements IWebsocketClientChannel {
     public void setSsl(boolean ssl) {
         this.ssl = ssl;
     }
-
-    /**
-     * Set ssl parameters
-     *
-     * @param keystoreDefaultType
-     *            keystore certificates type
-     * @param trustoreDefaultType
-     *            trustore certificates type
-     * @param keystoreFile
-     *            keystore file path
-     * @param trustoreFile
-     *            trustore file path
-     * @param sslProtocol
-     *            ssl protocol used
-     * @param keystorePassword
-     *            keystore password
-     * @param trustorePassword
-     *            trustore password
-     */
-    public void setSSLParams(String keystoreDefaultType,
-                             String trustoreDefaultType, String keystoreFile,
-                             String trustoreFile, String sslProtocol, String keystorePassword,
-                             String trustorePassword) {
-        this.keystoreDefaultType = keystoreDefaultType;
-        this.trustoreDefaultType = trustoreDefaultType;
-        this.keystoreFile = keystoreFile;
-        this.trustoreFile = trustoreFile;
-        this.sslProtocol = sslProtocol;
-        this.keystorePassword = keystorePassword;
-        this.trustorePassword = trustorePassword;
-    }
-
 }
